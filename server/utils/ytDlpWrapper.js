@@ -24,6 +24,7 @@ const fetchTranscriptWithYtDlp = (videoUrl) => {
             '--write-auto-sub',
             '--sub-lang', 'en',
             '--output', outputTemplate,
+            '--js-runtimes', 'node',
             videoUrl
         ];
 

@@ -78,7 +78,16 @@ const AiTools = () => {
             }
 
             // 4. Send to Backend
-            const { data } = await api.summarizeVideo({ url: videoUrl, transcript: transcriptText });
+            const response = await fetch("http://localhost:8765/api/summarize", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url: videoUrl, transcript: transcriptText })
+            });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || errorData.message || 'Failed to summarize video');
+            }
+            const data = await response.json();
             setSummary(data.summary);
 
         } catch (err) {

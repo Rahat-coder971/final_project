@@ -20,31 +20,7 @@ const chatModel = new ChatGoogleGenerativeAI({
     apiKey: process.env.GEMINI_API_KEY,
 });
 
-// @desc    Summarize YouTube Video
-// @route   POST /api/ai/summarize-video
-// @access  Private
-const summarizeYouTubeVideo = async (req, res) => {
-    try {
-        const { transcript } = req.body;
-        if (!transcript) return res.status(400).json({ message: 'Transcript required' });
 
-        const response = await chatModel.invoke([
-            new SystemMessage("You are an expert educational AI assistant. Your goal is to summarize video transcripts concisely."),
-            new HumanMessage(`
-                Summarize the following YouTube video transcript in a concise, bulleted format. 
-                Highlight the key takeaways and actionable insights.
-                
-                Transcript:
-                "${transcript.substring(0, 30000)}" 
-            `),
-        ]);
-
-        res.json({ summary: response.content });
-    } catch (error) {
-        console.error("Summary Error:", error);
-        res.status(500).json({ message: 'Failed to summarize video' });
-    }
-};
 
 // @desc    Generate a professional performance summary
 // @route   POST /api/ai/performance-summary
@@ -362,4 +338,4 @@ const getWhiteboardNotes = async (req, res) => {
     }
 };
 
-module.exports = { generatePerformanceSummary, summarizeYouTubeVideo, generateCoachFeedback, generateDailyQuiz, generateRecoveryPlan, generateWhiteboardNotes, getWhiteboardNotes };
+module.exports = { generatePerformanceSummary, generateCoachFeedback, generateDailyQuiz, generateRecoveryPlan, generateWhiteboardNotes, getWhiteboardNotes };
