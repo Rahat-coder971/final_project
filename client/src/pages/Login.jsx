@@ -2,17 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaGoogle, FaGithub } from 'react-icons/fa';
 import { toast } from 'react-toastify';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider, githubProvider } from '../firebase';
 import * as api from '../api';
 
 const Login = () => {
 
     const [formData, setFormData] = useState({ email: '', password: '' });
-
+    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
-        // Force clear any existing session when landing on Login page
-        // This prevents "Hardik" token from persisting when trying to login as "CodeCrafter"
         localStorage.clear();
     }, []);
 
@@ -20,22 +20,63 @@ const Login = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const handleSuccessfulAuth = (data) => {
+        localStorage.setItem('profile', JSON.stringify(data));
+        localStorage.setItem('token', data.token);
+
+        toast.success(`Welcome back, ${data.name}!`);
+
+        if (data.role === 'student') {
+            navigate('/dashboard');
+        } else {
+            navigate('/mentor-dashboard');
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
         try {
             const { data } = await api.login({ ...formData });
-            localStorage.setItem('profile', JSON.stringify(data));
-            localStorage.setItem('token', data.token);
-
-            toast.success("Login successful! Welcome back.");
-
-            if (data.role === 'student') {
-                navigate('/dashboard');
-            } else {
-                navigate('/mentor-dashboard'); // To be built
-            }
+            handleSuccessfulAuth(data);
         } catch (err) {
             toast.error(err.response?.data?.message || 'Login failed. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const loginWithGoogle = async () => {
+        setIsLoading(true);
+        try {
+            const result = await signInWithPopup(auth, googleProvider);
+            const { email, displayName } = result.user;
+            const { data } = await api.firebaseSignIn({ email, name: displayName });
+            handleSuccessfulAuth(data);
+        } catch (err) {
+            console.error(err);
+            toast.error('Google Sign-In failed');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const loginWithGithub = async () => {
+        setIsLoading(true);
+        try {
+            const result = await signInWithPopup(auth, githubProvider);
+            const { email, displayName, reloadUserInfo } = result.user;
+            // GitHub might not return email in result.user.email if private, 
+            // but firebase usually handles it if configured. 
+            // Fallback to screenName/login if displayName is missing.
+            const name = displayName || reloadUserInfo.screenName;
+            const { data } = await api.firebaseSignIn({ email, name });
+            handleSuccessfulAuth(data);
+        } catch (err) {
+            console.error(err);
+            toast.error('GitHub Sign-In failed');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -58,20 +99,13 @@ const Login = () => {
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-100">
-
-                    {/* Role Toggle DEPRECATED FOR LOGIN usually, keeping for visual consistency if needed, but login usually detects role or inputs it. 
-              Let's keep it visuals only or remove if not needed for API. 
-              Actually, usually login is just email/pass. Lets keep it simple.
-          */}
-
-
-
                     <div className="space-y-6">
-                        {/* Social Buttons skipped for brevity in this update, keeping layout */}
                         <div>
                             <button
                                 type="button"
-                                className="w-full flex justify-center items-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                                onClick={() => loginWithGoogle()}
+                                disabled={isLoading}
+                                className="w-full flex justify-center items-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
                             >
                                 <FaGoogle className="text-red-500 text-lg" />
                                 Continue with Google
@@ -80,7 +114,9 @@ const Login = () => {
                         <div>
                             <button
                                 type="button"
-                                className="w-full flex justify-center items-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                                onClick={loginWithGithub}
+                                disabled={isLoading}
+                                className="w-full flex justify-center items-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
                             >
                                 <FaGithub className="text-gray-900 text-lg" />
                                 Continue with GitHub
@@ -134,9 +170,10 @@ const Login = () => {
                             <div>
                                 <button
                                     type="submit"
-                                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors"
+                                    disabled={isLoading}
+                                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors disabled:opacity-50"
                                 >
-                                    Sign in
+                                    {isLoading ? 'Signing in...' : 'Sign in'}
                                 </button>
                             </div>
                         </form>

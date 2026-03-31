@@ -2,6 +2,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
 const { HumanMessage, SystemMessage } = require("@langchain/core/messages");
 const OpenAI = require('openai');
+const pdfParse = require('pdf-parse');
 const Student = require('../models/Student');
 const Roadmap = require('../models/Roadmap');
 const MeetingNote = require('../models/MeetingNote');
@@ -338,4 +339,154 @@ const getWhiteboardNotes = async (req, res) => {
     }
 };
 
-module.exports = { generatePerformanceSummary, generateCoachFeedback, generateDailyQuiz, generateRecoveryPlan, generateWhiteboardNotes, getWhiteboardNotes };
+// @desc    Chat with the Platform AI Assistant
+// @route   POST /api/ai/chat
+// @access  Private
+const chatWithBot = async (req, res) => {
+    try {
+        const { message, history } = req.body;
+
+        if (!message) {
+            return res.status(400).json({ message: 'Message is required' });
+        }
+
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        // Build the prompt with context
+        const context = `
+            You are the Elevate Hub AI Assistant. Your job is to help users navigate and understand this platform.
+            
+            Platform Features to remember:
+            1. AI-Powered Dynamic Roadmaps: Automatically generated paths tailored to student goals.
+            2. Lock & Key Progression: Content is locked by default. Students must pass a review (75% or higher score) with a mentor to unlock the next milestone. This ensures mastery.
+            3. Performance Tracker: A dashboard with Focus Areas, Skills Radar, and Mentor Guidance.
+            4. Interactive Learning: Quizzes and Projects to prepare for interviews.
+            5. Mentorship: Real-time 'Grade Now' tools, custom roadmaps editing, and actionable feedback.
+
+            Guidelines:
+            - Keep answers concise, friendly, and practical.
+            - Relate answers to the specific features of Elevate Hub when possible.
+            - If you don't know the answer, politely say so. Do NOT invent new features that Elevate Hub does not have.
+        `;
+
+        // Format history for Gemini if passed, otherwise just use prompt
+        const chatSession = model.startChat({
+            history: history || [], // history format: [{role: 'user'/'model', parts: [{text: '...'}]}]
+            systemInstruction: context
+        });
+
+        const result = await chatSession.sendMessage(message);
+        const reply = result.response.text();
+
+        res.json({ reply });
+
+    } catch (error) {
+        console.error("AI Chatbot Failed:", error);
+        res.status(500).json({ message: 'Failed to process chat request' });
+    }
+};
+
+// @desc    Extract text from PDF
+// @route   POST /api/ai/extract-pdf
+// @access  Private
+const extractPdfText = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No file uploaded' });
+        }
+
+        const data = await pdfParse(req.file.buffer);
+        res.json({ text: data.text });
+    } catch (error) {
+        console.error("PDF Extraction Failed:", error);
+        res.status(500).json({ message: 'Failed to extract PDF text' });
+    }
+};
+
+// @desc    Chat with a specific PDF context
+// @route   POST /api/ai/pdf-chat
+// @access  Private
+const chatWithPdf = async (req, res) => {
+    try {
+        const { message, context, history } = req.body;
+
+        if (!message || !context) {
+            return res.status(400).json({ message: 'Message and PDF context are required' });
+        }
+
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        const systemInstruction = `
+            You are a helpful AI assistant. Answer the user's question based strictly on the following document content.
+            If the answer is not in the document, politely state that you cannot answer based on the provided context.
+            
+            Document Content:
+            ${context}
+        `;
+
+        const chatSession = model.startChat({
+            history: history || [],
+            systemInstruction
+        });
+
+        const result = await chatSession.sendMessage(message);
+        res.json({ reply: result.response.text() });
+
+    } catch (error) {
+        console.error("PDF Chat Failed:", error);
+        res.status(500).json({ message: 'Failed to chat with PDF' });
+    }
+};
+
+// @desc    Score a Resume PDF
+// @route   POST /api/ai/resume-score
+// @access  Private
+const scoreResume = async (req, res) => {
+    try {
+        // if they passed text directly
+        let text = req.body.text; 
+        
+        // if they passed a file
+        if (!text && req.file) {
+            const data = await pdfParse(req.file.buffer);
+            text = data.text;
+        }
+
+        if (!text) {
+            return res.status(400).json({ message: 'No resume content provided' });
+        }
+
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        const prompt = `
+            Act as an expert ATS (Applicant Tracking System) and Technical Recruiter.
+            Review the following resume and evaluate it.
+            
+            You must return ONLY a raw JSON object (no markdown, no backticks, no \`\`\`json) with the following exact structure:
+            {
+                "score": 85,
+                "strengths": ["Strength 1", "Strength 2", "Strength 3"],
+                "weaknesses": ["Area for improvement 1", "Area for improvement 2"],
+                "verdict": "A short 2-3 sentence summary of the resume's quality."
+            }
+            
+            Resume Content:
+            ${text}
+        `;
+
+        const result = await model.generateContent(prompt);
+        let responseText = result.response.text();
+        
+        // Clean up markdown just in case
+        responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const scoreData = JSON.parse(responseText);
+
+        res.json(scoreData);
+
+    } catch (error) {
+        console.error("Resume Scoring Failed:", error);
+        res.status(500).json({ message: 'Failed to score resume' });
+    }
+};
+
+module.exports = { generatePerformanceSummary, generateCoachFeedback, generateDailyQuiz, generateRecoveryPlan, generateWhiteboardNotes, getWhiteboardNotes, chatWithBot, extractPdfText, chatWithPdf, scoreResume };

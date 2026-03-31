@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaGoogle, FaGithub } from 'react-icons/fa';
 import { toast } from 'react-toastify';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider, githubProvider } from '../firebase';
 import * as api from '../api';
 
 const Signup = () => {
     const [role, setRole] = useState('student');
     const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+    const [isLoading, setIsLoading] = useState(false);
 
     const navigate = useNavigate();
 
@@ -14,22 +17,60 @@ const Signup = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const handleSuccessfulAuth = (data) => {
+        localStorage.setItem('profile', JSON.stringify(data));
+        localStorage.setItem('token', data.token);
+
+        toast.success(`Account ready! Welcome, ${data.name}!`);
+
+        if (data.role === 'student') {
+            navigate('/dashboard');
+        } else {
+            navigate('/mentor-dashboard');
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
         try {
             const { data } = await api.register({ ...formData, role });
-            localStorage.setItem('profile', JSON.stringify(data));
-            localStorage.setItem('token', data.token);
-
-            toast.success("Account created successfully!");
-
-            if (data.role === 'student') {
-                navigate('/dashboard');
-            } else {
-                navigate('/mentor-dashboard'); // To be built
-            }
+            handleSuccessfulAuth(data);
         } catch (err) {
             toast.error(err.response?.data?.message || 'Signup failed. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const loginWithGoogle = async () => {
+        setIsLoading(true);
+        try {
+            const result = await signInWithPopup(auth, googleProvider);
+            const { email, displayName } = result.user;
+            const { data } = await api.firebaseSignIn({ email, name: displayName, role });
+            handleSuccessfulAuth(data);
+        } catch (err) {
+            console.error(err);
+            toast.error('Google Sign-Up failed');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const loginWithGithub = async () => {
+        setIsLoading(true);
+        try {
+            const result = await signInWithPopup(auth, githubProvider);
+            const { email, displayName, reloadUserInfo } = result.user;
+            const name = displayName || reloadUserInfo.screenName;
+            const { data } = await api.firebaseSignIn({ email, name, role });
+            handleSuccessfulAuth(data);
+        } catch (err) {
+            console.error(err);
+            toast.error('GitHub Sign-Up failed');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -52,8 +93,6 @@ const Signup = () => {
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-100">
-
-
 
                     {/* Role Toggle */}
                     <div className="flex justify-center mb-6">
@@ -83,7 +122,9 @@ const Signup = () => {
                         <div>
                             <button
                                 type="button"
-                                className="w-full flex justify-center items-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                                onClick={() => loginWithGoogle()}
+                                disabled={isLoading}
+                                className="w-full flex justify-center items-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
                             >
                                 <FaGoogle className="text-red-500 text-lg" />
                                 Sign up with Google
@@ -92,7 +133,9 @@ const Signup = () => {
                         <div>
                             <button
                                 type="button"
-                                className="w-full flex justify-center items-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                                onClick={loginWithGithub}
+                                disabled={isLoading}
+                                className="w-full flex justify-center items-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
                             >
                                 <FaGithub className="text-gray-900 text-lg" />
                                 Sign up with GitHub
@@ -160,9 +203,10 @@ const Signup = () => {
                             <div>
                                 <button
                                     type="submit"
-                                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors"
+                                    disabled={isLoading}
+                                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors disabled:opacity-50"
                                 >
-                                    Create {role === 'student' ? 'Student' : 'Mentor'} Account
+                                    {isLoading ? 'Processing...' : `Create ${role === 'student' ? 'Student' : 'Mentor'} Account`}
                                 </button>
                             </div>
                         </form>

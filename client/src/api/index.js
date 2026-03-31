@@ -14,6 +14,9 @@ API.interceptors.request.use((req) => {
 
 export const login = (formData) => API.post('/auth/login', formData);
 export const register = (formData) => API.post('/auth/register', formData);
+export const googleSignIn = (token) => API.post('/auth/google', { access_token: token });
+export const githubSignIn = (code) => API.post('/auth/github', { code });
+export const firebaseSignIn = (userData) => API.post('/auth/firebase-signin', userData);
 export const createBooking = (bookingData) => API.post('/bookings', bookingData);
 export const fetchBookings = () => API.get('/bookings');
 export const completeInterview = (bookingId, data) => API.put(`/bookings/${bookingId}/complete`, data);
@@ -41,6 +44,16 @@ export const fetchConversations = () => API.get('/messages/conversations');
 export const summarizeVideo = (data) => API.post('/ai/summarize-video', data);
 export const generatePerformanceSummary = (studentId) => API.post('/ai/performance-summary', { studentId });
 export const fetchAICoachFeedback = () => API.post('/ai/coach');
+export const chatWithBot = (data) => API.post('/ai/chat', data);
+
+// AI File Features
+export const extractPdfContext = (formData) => API.post('/ai/extract-pdf', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+});
+export const sendPdfChat = (data) => API.post('/ai/pdf-chat', data);
+export const generateResumeScore = (formData) => API.post('/ai/resume-score', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+});
 
 // Roadmap Quiz & Unlock
 export const submitQuiz = (roadmapId, milestoneIdx, sectionIdx, answers) => API.post(`/roadmap/${roadmapId}/section/${milestoneIdx}/${sectionIdx}/quiz`, { answers });

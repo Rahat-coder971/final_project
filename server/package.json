@@ -25,9 +25,11 @@
     "jsonwebtoken": "^9.0.3",
     "langchain": "^1.2.21",
     "mongoose": "^8.23.0",
+    "multer": "^2.1.1",
     "nodemailer": "^8.0.1",
     "nodemon": "^3.1.11",
     "openai": "^6.21.0",
+    "pdf-parse": "^2.4.5",
     "socket.io": "^4.8.3",
     "youtube-transcript": "^1.2.1",
     "youtubei.js": "^16.0.1"
